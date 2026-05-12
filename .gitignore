@@ -29,5 +29,8 @@ coverage/
 public/stockfish-*.js
 public/stockfish-*.wasm
 
+# Voice A/B output (CHE-19) — regenerate with `npx tsx scripts/voice-ab.ts`
+voice-ab-results.md
+
 # Claude local-only settings (project-level settings.json is fine to commit)
 .claude/settings.local.json
