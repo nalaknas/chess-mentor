@@ -3,6 +3,7 @@ import { Board } from './components/Board';
 import { EvalBar } from './components/EvalBar';
 import { MoveList } from './components/MoveList';
 import { PgnInput } from './components/PgnInput';
+import { SidePane } from './components/SidePane';
 import { useAppStore } from './store';
 
 const STARTING_FEN =
@@ -13,6 +14,14 @@ function App() {
   const ply = useAppStore((s) => s.currentPly);
   const position = game?.positions[ply];
   const fen = position?.fen ?? STARTING_FEN;
+
+  // On a key moment, show the engine's best move from the position
+  // BEFORE the user's move. That arrow tells the user "here's what
+  // you should have played instead."
+  const bestMoveArrow =
+    position?.isKeyMoment && ply > 0
+      ? game?.positions[ply - 1]?.engineBestMove
+      : undefined;
 
   return (
     <div className="flex h-full flex-col bg-stone-50 text-stone-900">
@@ -28,28 +37,17 @@ function App() {
         >
           <div className="flex items-stretch justify-center gap-2">
             <EvalBar cp={position?.engineEval} />
-            <Board fen={fen} orientation={game?.userColor ?? 'white'} />
+            <Board
+              fen={fen}
+              orientation={game?.userColor ?? 'white'}
+              bestMoveArrow={bestMoveArrow}
+            />
           </div>
           <AnalysisProgress />
           {game ? <MoveList /> : <PgnInput />}
         </section>
 
-        <aside
-          aria-label="Analysis pane"
-          className="rounded-md border border-stone-200 bg-white p-3 text-sm text-stone-400 md:w-80"
-        >
-          {game ? (
-            <div className="space-y-1">
-              <div className="text-stone-900">
-                {game.white} vs {game.black}
-              </div>
-              <div>Result: {game.result}</div>
-              <div>Moves: {game.positions.length - 1}</div>
-            </div>
-          ) : (
-            'Side pane'
-          )}
-        </aside>
+        <SidePane />
       </main>
     </div>
   );
