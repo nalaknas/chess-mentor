@@ -1,6 +1,11 @@
+import { AnalysisCard } from './AnalysisCard';
 import { formatEval } from '../format';
 import { useAppStore } from '../store';
 import type { Classification } from '../types';
+
+// Placeholder until the userProfile UI lands. Spec target user is 400-1800
+// ELO; mid-beginner is a reasonable default and matches the spec's examples.
+const DEFAULT_USER_ELO = 800;
 
 const CLASS_LABEL: Record<Classification, string> = {
   best: 'Best move',
@@ -99,6 +104,10 @@ export function SidePane() {
             </div>
           )}
         </div>
+      )}
+
+      {isKey && (
+        <AnalysisCard game={game} ply={ply} userElo={DEFAULT_USER_ELO} />
       )}
     </aside>
   );

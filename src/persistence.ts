@@ -63,6 +63,24 @@ export async function deleteGame(gameId: string): Promise<void> {
   await refreshLibrary();
 }
 
+// ─── Analyses ──────────────────────────────────────────────────────
+
+/** Stable id so put() upserts deterministically per (gameId, ply). */
+export function analysisId(gameId: string, ply: number): string {
+  return `${gameId}-ply${ply}`;
+}
+
+export async function getAnalysis(
+  gameId: string,
+  ply: number,
+): Promise<Analysis | undefined> {
+  return db.analyses.where('[gameId+ply]').equals([gameId, ply]).first();
+}
+
+export async function saveAnalysis(analysis: Analysis): Promise<void> {
+  await db.analyses.put(analysis);
+}
+
 // ─── Backup / restore ──────────────────────────────────────────────
 
 export interface BackupFile {
