@@ -10,7 +10,7 @@ export interface EngineResult {
   depth: number;
 }
 
-const WORKER_URL = '/stockfish-18-lite.js';
+const WORKER_URL = '/stockfish-18-lite-single.js';
 const MATE_SCORE = 30000;
 
 class StockfishEngine {

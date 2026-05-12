@@ -8,7 +8,12 @@ import { resolve } from 'node:path';
 const PUBLIC_DIR = resolve('public');
 const SRC_DIR = resolve('node_modules/stockfish/bin');
 
-const FILES = ['stockfish-18-lite.js', 'stockfish-18-lite.wasm'];
+// Single-threaded build: doesn't need SharedArrayBuffer / cross-origin
+// isolation, so it's robust against browser cache + extension quirks.
+// To upgrade to the threaded build (≈30% faster), switch to
+// `stockfish-18-lite.{js,wasm}` and ensure COOP/COEP are reaching the
+// browser (window.crossOriginIsolated === true).
+const FILES = ['stockfish-18-lite-single.js', 'stockfish-18-lite-single.wasm'];
 
 if (!existsSync(SRC_DIR)) {
   console.warn('[copy-stockfish] node_modules/stockfish not found; skipping.');
