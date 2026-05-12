@@ -19,8 +19,15 @@ export async function analyzeGame(game: Game): Promise<void> {
     const pos = game.positions[ply];
     const result = await engine.analyzePosition(pos.fen, ENGINE_DEPTH);
 
+    // Stockfish reports `score cp / mate` from the side-to-move's POV.
+    // Normalize to White's POV so the eval bar moves consistently with
+    // material (positive = White better).
+    const sideToMove = pos.fen.split(' ')[1];
+    const evalWhitePov =
+      sideToMove === 'b' ? -result.evalCp : result.evalCp;
+
     store.getState().updatePosition(ply, {
-      engineEval: result.evalCp,
+      engineEval: evalWhitePov,
       engineBestMove: result.bestMove,
       engineBestMoveSan: uciToSan(pos.fen, result.bestMove),
       enginePv: result.pv,
