@@ -22,6 +22,7 @@ export function SidePane() {
   const game = useAppStore((s) => s.currentGame);
   const ply = useAppStore((s) => s.currentPly);
   const position = game?.positions[ply];
+  const previous = ply > 0 ? game?.positions[ply - 1] : undefined;
 
   if (!game) {
     return (
@@ -38,6 +39,13 @@ export function SidePane() {
   // the classification + engine pick so CHE-9 / CHE-10 are testable.
   const isKey = position?.isKeyMoment;
   const cls = position?.classification;
+  // "What the user should have played" lives on the PREVIOUS position
+  // (the position from which the user was about to move). The current
+  // position's engineBestMove is the opponent's response to the
+  // blunder — not what we want to surface.
+  const alternativeSan = previous?.engineBestMoveSan;
+  const evalBefore = previous?.engineEval;
+  const evalAfter = position?.engineEval;
 
   return (
     <aside
@@ -62,7 +70,7 @@ export function SidePane() {
             <div className="mt-1 font-mono text-base text-stone-900">
               {position.moveSan}
               {cls && (
-                <span className={`ml-2 text-xs ${CLASS_COLOR[cls]}`}>
+                <span className={`ml-2 font-sans text-xs ${CLASS_COLOR[cls]}`}>
                   {CLASS_LABEL[cls]}
                 </span>
               )}
@@ -72,17 +80,22 @@ export function SidePane() {
           )}
 
           {isKey && position.evalDrop !== undefined && (
-            <div className="mt-2 text-xs text-stone-600">
-              Lost {Math.round(position.evalDrop)}cp vs the engine's pick
-              {position.engineBestMoveSan && (
-                <>
-                  : <span className="font-mono text-stone-900">{position.engineBestMoveSan}</span>
-                  {position.engineEval !== undefined && (
-                    <> ({formatEval(position.engineEval)} → engine line)</>
-                  )}
-                </>
+            <div className="mt-2 space-y-1 text-xs text-stone-600">
+              <div>Lost {Math.round(position.evalDrop)}cp.</div>
+              {alternativeSan && (
+                <div>
+                  Engine preferred:{' '}
+                  <span className="font-mono text-stone-900">
+                    {alternativeSan}
+                  </span>
+                  .
+                </div>
               )}
-              .
+              {evalBefore !== undefined && evalAfter !== undefined && (
+                <div className="text-stone-500">
+                  Eval: {formatEval(evalBefore)} → {formatEval(evalAfter)}
+                </div>
+              )}
             </div>
           )}
         </div>
