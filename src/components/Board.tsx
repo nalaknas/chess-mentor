@@ -1,13 +1,29 @@
 import { useEffect, useRef } from 'react';
 import { Chessground } from 'chessground';
 import type { Api } from 'chessground/api';
+import type { DrawShape } from 'chessground/draw';
 
 interface BoardProps {
   fen: string;
   orientation?: 'white' | 'black';
+  /** Optional UCI move (e.g. 'e2e4') drawn as a green arrow on the board. */
+  bestMoveArrow?: string;
 }
 
-export function Board({ fen, orientation = 'white' }: BoardProps) {
+function uciToShape(uci?: string): DrawShape[] {
+  if (!uci || uci.length < 4) return [];
+  const orig = uci.slice(0, 2);
+  const dest = uci.slice(2, 4);
+  return [
+    {
+      orig: orig as DrawShape['orig'],
+      dest: dest as DrawShape['dest'],
+      brush: 'green',
+    },
+  ];
+}
+
+export function Board({ fen, orientation = 'white', bestMoveArrow }: BoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<Api | null>(null);
 
@@ -18,6 +34,7 @@ export function Board({ fen, orientation = 'white' }: BoardProps) {
       orientation,
       viewOnly: true,
       coordinates: true,
+      drawable: { enabled: false, visible: true },
     });
     return () => {
       apiRef.current?.destroy();
@@ -28,6 +45,10 @@ export function Board({ fen, orientation = 'white' }: BoardProps) {
   useEffect(() => {
     apiRef.current?.set({ fen, orientation });
   }, [fen, orientation]);
+
+  useEffect(() => {
+    apiRef.current?.setShapes(uciToShape(bestMoveArrow));
+  }, [bestMoveArrow]);
 
   return (
     <div className="aspect-square w-full max-w-lg self-center">

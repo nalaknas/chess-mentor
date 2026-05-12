@@ -1,6 +1,22 @@
 import { useEffect } from 'react';
 import { formatEval } from '../format';
 import { useAppStore } from '../store';
+import type { Classification } from '../types';
+
+const BADGE: Record<Classification, { label: string; dot: string; text: string }> = {
+  best:       { label: '',    dot: '',                       text: '' },
+  good:       { label: '',    dot: '',                       text: '' },
+  inaccuracy: { label: '?',   dot: 'bg-yellow-400',          text: 'text-yellow-700' },
+  mistake:    { label: '?!',  dot: 'bg-orange-500',          text: 'text-orange-700' },
+  blunder:    { label: '??',  dot: 'bg-red-500',             text: 'text-red-700' },
+};
+
+interface MoveCellData {
+  ply: number;
+  san: string;
+  eval?: number;
+  classification?: Classification;
+}
 
 export function MoveList() {
   const game = useAppStore((s) => s.currentGame);
@@ -24,8 +40,6 @@ export function MoveList() {
 
   if (!game) return null;
 
-  // Group moves into [whiteMove, blackMove] pairs by full-move number.
-  type MoveCellData = { ply: number; san: string; eval?: number };
   const pairs: Array<{
     moveNumber: number;
     white?: MoveCellData;
@@ -38,6 +52,7 @@ export function MoveList() {
       ply: i,
       san: pos.moveSan,
       eval: pos.engineEval,
+      classification: pos.classification,
     };
     const moveNumber = Math.ceil(i / 2);
     const side = i % 2 === 1 ? 'white' : 'black';
@@ -73,13 +88,14 @@ function MoveCell({
   currentPly,
   onClick,
 }: {
-  move?: { ply: number; san: string; eval?: number };
+  move?: MoveCellData;
   currentPly: number;
   onClick: (ply: number) => void;
 }) {
   if (!move) return <div />;
   const active = move.ply === currentPly;
   const evalLabel = formatEval(move.eval);
+  const badge = move.classification ? BADGE[move.classification] : undefined;
   return (
     <button
       type="button"
@@ -89,7 +105,18 @@ function MoveCell({
         (active ? 'bg-amber-100 text-amber-900' : '')
       }
     >
-      <span>{move.san}</span>
+      <span className="flex items-center gap-1">
+        {badge?.dot && (
+          <span
+            className={`inline-block h-1.5 w-1.5 rounded-full ${badge.dot}`}
+            aria-hidden="true"
+          />
+        )}
+        <span className={badge?.text ?? ''}>
+          {move.san}
+          {badge?.label}
+        </span>
+      </span>
       {evalLabel && (
         <span className="ml-2 text-[10px] font-normal text-stone-500">
           {evalLabel}
