@@ -1,4 +1,6 @@
+import { AnalysisProgress } from './components/AnalysisProgress';
 import { Board } from './components/Board';
+import { EvalBar } from './components/EvalBar';
 import { MoveList } from './components/MoveList';
 import { PgnInput } from './components/PgnInput';
 import { useAppStore } from './store';
@@ -9,7 +11,8 @@ const STARTING_FEN =
 function App() {
   const game = useAppStore((s) => s.currentGame);
   const ply = useAppStore((s) => s.currentPly);
-  const fen = game?.positions[ply]?.fen ?? STARTING_FEN;
+  const position = game?.positions[ply];
+  const fen = position?.fen ?? STARTING_FEN;
 
   return (
     <div className="flex h-full flex-col bg-stone-50 text-stone-900">
@@ -23,7 +26,11 @@ function App() {
           aria-label="Board and move list"
           className="flex flex-1 flex-col gap-4"
         >
-          <Board fen={fen} orientation={game?.userColor ?? 'white'} />
+          <div className="flex items-stretch justify-center gap-2">
+            <EvalBar cp={position?.engineEval} />
+            <Board fen={fen} orientation={game?.userColor ?? 'white'} />
+          </div>
+          <AnalysisProgress />
           {game ? <MoveList /> : <PgnInput />}
         </section>
 

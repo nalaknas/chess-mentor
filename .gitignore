@@ -25,5 +25,9 @@ yarn-error.log*
 # test coverage
 coverage/
 
+# Stockfish wasm copied by postinstall (run `npm install` or `npm run postinstall`)
+public/stockfish-*.js
+public/stockfish-*.wasm
+
 # Claude local-only settings (project-level settings.json is fine to commit)
 .claude/settings.local.json

@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "node scripts/copy-stockfish.mjs"
   },
   "dependencies": {
     "chess.js": "^1.4.0",
@@ -15,6 +16,7 @@
     "dexie": "^4.4.2",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "stockfish": "^18.0.7",
     "zustand": "^5.0.13"
   },
   "devDependencies": {

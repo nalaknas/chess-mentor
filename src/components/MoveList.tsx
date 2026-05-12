@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { formatEval } from '../format';
 import { useAppStore } from '../store';
 
 export function MoveList() {
@@ -24,24 +25,30 @@ export function MoveList() {
   if (!game) return null;
 
   // Group moves into [whiteMove, blackMove] pairs by full-move number.
+  type MoveCellData = { ply: number; san: string; eval?: number };
   const pairs: Array<{
     moveNumber: number;
-    white?: { ply: number; san: string };
-    black?: { ply: number; san: string };
+    white?: MoveCellData;
+    black?: MoveCellData;
   }> = [];
   for (let i = 1; i < game.positions.length; i++) {
     const pos = game.positions[i];
     if (!pos.moveSan) continue;
+    const cell: MoveCellData = {
+      ply: i,
+      san: pos.moveSan,
+      eval: pos.engineEval,
+    };
     const moveNumber = Math.ceil(i / 2);
     const side = i % 2 === 1 ? 'white' : 'black';
     if (side === 'white') {
-      pairs.push({ moveNumber, white: { ply: i, san: pos.moveSan } });
+      pairs.push({ moveNumber, white: cell });
     } else {
       const last = pairs[pairs.length - 1];
       if (last && last.moveNumber === moveNumber) {
-        last.black = { ply: i, san: pos.moveSan };
+        last.black = cell;
       } else {
-        pairs.push({ moveNumber, black: { ply: i, san: pos.moveSan } });
+        pairs.push({ moveNumber, black: cell });
       }
     }
   }
@@ -66,22 +73,28 @@ function MoveCell({
   currentPly,
   onClick,
 }: {
-  move?: { ply: number; san: string };
+  move?: { ply: number; san: string; eval?: number };
   currentPly: number;
   onClick: (ply: number) => void;
 }) {
   if (!move) return <div />;
   const active = move.ply === currentPly;
+  const evalLabel = formatEval(move.eval);
   return (
     <button
       type="button"
       onClick={() => onClick(move.ply)}
       className={
-        'rounded px-1.5 py-0.5 text-left font-mono hover:bg-stone-100 ' +
+        'flex items-baseline justify-between rounded px-1.5 py-0.5 font-mono hover:bg-stone-100 ' +
         (active ? 'bg-amber-100 text-amber-900' : '')
       }
     >
-      {move.san}
+      <span>{move.san}</span>
+      {evalLabel && (
+        <span className="ml-2 text-[10px] font-normal text-stone-500">
+          {evalLabel}
+        </span>
+      )}
     </button>
   );
 }

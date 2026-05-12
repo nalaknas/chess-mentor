@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { analyzeGame } from '../engine/analyze';
 import { parsePgn } from '../pgn';
 import { useAppStore } from '../store';
 import type { Color, Game, GameResult, GameSource } from '../types';
@@ -38,6 +39,9 @@ export function PgnInput({ defaultColor = 'white', source = 'paste' }: PgnInputP
         positions,
       };
       setCurrentGame(game);
+      // Kick off engine analysis in the background; the UI stays
+      // navigable while evals stream in.
+      void analyzeGame(game);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to parse PGN');
     }
