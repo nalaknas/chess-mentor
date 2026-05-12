@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { exportBackup, importBackup, refreshLibrary } from '../persistence';
+import { exportBackup, importBackup } from '../persistence';
 import { useAppStore } from '../store';
 
 export function Header() {
@@ -13,9 +13,13 @@ export function Header() {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      await importBackup(file);
-      await refreshLibrary();
+      const result = await importBackup(file);
+      window.alert(
+        `Imported ${result.games} game${result.games === 1 ? '' : 's'} ` +
+          `(+${result.analyses} analyses, +${result.conversations} conversations).`,
+      );
     } catch (err) {
+      console.error('Import failed:', err);
       window.alert(`Import failed: ${err instanceof Error ? err.message : err}`);
     } finally {
       e.target.value = '';

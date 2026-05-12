@@ -12,6 +12,12 @@ import type {
   UserProfile,
 } from './types';
 
+export interface ImportResult {
+  games: number;
+  analyses: number;
+  conversations: number;
+}
+
 /** Save a game (and its updated positions) to IndexedDB. */
 export async function saveGame(game: Game): Promise<void> {
   await db.games.put(game);
@@ -90,11 +96,21 @@ export async function exportBackup(): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
-export async function importBackup(file: File): Promise<void> {
+export async function importBackup(file: File): Promise<ImportResult> {
   const text = await file.text();
-  const parsed = JSON.parse(text) as Partial<BackupFile>;
-  if (parsed.version !== 1 || !Array.isArray(parsed.games)) {
-    throw new Error('Invalid backup file');
+  let parsed: Partial<BackupFile>;
+  try {
+    parsed = JSON.parse(text) as Partial<BackupFile>;
+  } catch {
+    throw new Error('File is not valid JSON');
+  }
+  if (parsed.version !== 1) {
+    throw new Error(
+      `Unsupported backup version: ${parsed.version}. Expected 1.`,
+    );
+  }
+  if (!Array.isArray(parsed.games)) {
+    throw new Error('Backup is missing the `games` array');
   }
 
   await db.transaction(
@@ -111,5 +127,20 @@ export async function importBackup(file: File): Promise<void> {
       if (parsed.conversations?.length) await db.conversations.bulkAdd(parsed.conversations);
     },
   );
+
+  // Replace in-memory state with what's now on disk. The stale
+  // `currentGame` reference was making it look like nothing happened.
+  const store = useAppStore.getState();
+  store.setCurrentGame(null);
   await refreshLibrary();
+  const games = useAppStore.getState().gameLibrary;
+  if (games.length > 0) {
+    useAppStore.getState().setCurrentGame(games[0]);
+  }
+
+  return {
+    games: parsed.games?.length ?? 0,
+    analyses: parsed.analyses?.length ?? 0,
+    conversations: parsed.conversations?.length ?? 0,
+  };
 }
