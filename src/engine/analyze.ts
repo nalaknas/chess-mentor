@@ -1,5 +1,6 @@
 import { useAppStore } from '../store';
-import type { Game } from '../types';
+import type { Game, Position } from '../types';
+import { classify } from './classify';
 import { getEngine } from './stockfish';
 import { uciToSan } from './utils';
 
@@ -26,12 +27,28 @@ export async function analyzeGame(game: Game): Promise<void> {
     const evalWhitePov =
       sideToMove === 'b' ? -result.evalCp : result.evalCp;
 
-    store.getState().updatePosition(ply, {
+    const patch: Partial<Position> = {
       engineEval: evalWhitePov,
       engineBestMove: result.bestMove,
       engineBestMoveSan: uciToSan(pos.fen, result.bestMove),
       enginePv: result.pv,
-    });
+    };
+
+    if (ply > 0) {
+      const prev = store.getState().currentGame?.positions[ply - 1];
+      if (prev?.engineEval !== undefined) {
+        const cls = classify({
+          evalBefore: prev.engineEval,
+          evalAfter: evalWhitePov,
+          ply,
+        });
+        patch.evalDrop = cls.evalDrop;
+        patch.classification = cls.classification;
+        patch.isKeyMoment = cls.isKeyMoment;
+      }
+    }
+
+    store.getState().updatePosition(ply, patch);
 
     store.getState().setAnalysisProgress({ done: ply + 1, total });
   }
