@@ -1,3 +1,4 @@
+import { db } from '../db';
 import { useAppStore } from '../store';
 import type { Game, Position } from '../types';
 import { classify } from './classify';
@@ -16,6 +17,13 @@ export async function analyzeGame(game: Game): Promise<void> {
   for (let ply = 0; ply < total; ply++) {
     // Bail if the user moved on to a different game.
     if (store.getState().currentGame?.id !== game.id) return;
+
+    // Skip if this ply was already analyzed (resume after reload).
+    const cached = store.getState().currentGame?.positions[ply];
+    if (cached?.engineEval !== undefined) {
+      store.getState().setAnalysisProgress({ done: ply + 1, total });
+      continue;
+    }
 
     const pos = game.positions[ply];
     const result = await engine.analyzePosition(pos.fen, ENGINE_DEPTH);
@@ -49,10 +57,21 @@ export async function analyzeGame(game: Game): Promise<void> {
     }
 
     store.getState().updatePosition(ply, patch);
-
     store.getState().setAnalysisProgress({ done: ply + 1, total });
+
+    // Write-through to IndexedDB after each ply so the game survives
+    // a reload and resume is cheap.
+    const updated = store.getState().currentGame;
+    if (updated?.id === game.id) {
+      await db.games.put(updated);
+    }
   }
 
   store.getState().setAnalysisStatus('engine_done');
   store.getState().setAnalysisProgress(null);
+
+  const final = store.getState().currentGame;
+  if (final?.id === game.id) {
+    await db.games.put(final);
+  }
 }

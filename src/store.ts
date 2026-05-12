@@ -11,12 +11,16 @@ interface AppState {
   currentGame: Game | null;
   currentPly: number;
   analysisProgress: AnalysisProgress | null;
+  gameLibrary: Game[];
+  hydrated: boolean;
 
   setCurrentGame: (game: Game | null) => void;
   setCurrentPly: (ply: number) => void;
   setAnalysisProgress: (progress: AnalysisProgress | null) => void;
   setAnalysisStatus: (status: AnalysisStatus) => void;
   updatePosition: (ply: number, patch: Partial<Position>) => void;
+  setGameLibrary: (games: Game[]) => void;
+  setHydrated: (value: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -24,6 +28,8 @@ export const useAppStore = create<AppState>((set) => ({
   currentGame: null,
   currentPly: 0,
   analysisProgress: null,
+  gameLibrary: [],
+  hydrated: false,
 
   setCurrentGame: (game) =>
     set({ currentGame: game, currentPly: 0, analysisProgress: null }),
@@ -42,4 +48,6 @@ export const useAppStore = create<AppState>((set) => ({
       positions[ply] = { ...positions[ply], ...patch };
       return { currentGame: { ...s.currentGame, positions } };
     }),
+  setGameLibrary: (games) => set({ gameLibrary: games }),
+  setHydrated: (value) => set({ hydrated: value }),
 }));
