@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AnalysisProgress } from './components/AnalysisProgress';
 import { Board } from './components/Board';
 import { EvalBar } from './components/EvalBar';
+import { FlipBoardButton } from './components/FlipBoardButton';
 import { Header } from './components/Header';
 import { LibraryList } from './components/LibraryList';
 import { MoveList } from './components/MoveList';
@@ -9,6 +10,7 @@ import { PgnInput } from './components/PgnInput';
 import { SidePane } from './components/SidePane';
 import { hydrateFromDb } from './persistence';
 import { useAppStore } from './store';
+import type { Color } from './types';
 
 const STARTING_FEN =
   'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -18,6 +20,15 @@ function App() {
   const ply = useAppStore((s) => s.currentPly);
   const position = game?.positions[ply];
   const fen = position?.fen ?? STARTING_FEN;
+
+  // Board orientation is ephemeral UI state: defaults to the user's
+  // color for this game, but the user can flip it any time to see
+  // the position from the other side. Resets when the active game
+  // changes.
+  const [orientation, setOrientation] = useState<Color>('white');
+  useEffect(() => {
+    setOrientation(game?.userColor ?? 'white');
+  }, [game?.id, game?.userColor]);
 
   useEffect(() => {
     void hydrateFromDb();
@@ -40,11 +51,21 @@ function App() {
           aria-label="Board and move list"
           className="flex flex-1 flex-col gap-4"
         >
+          {game && (
+            <div className="flex items-center justify-end">
+              <FlipBoardButton
+                orientation={orientation}
+                onFlip={() =>
+                  setOrientation((o) => (o === 'white' ? 'black' : 'white'))
+                }
+              />
+            </div>
+          )}
           <div className="flex items-stretch justify-center gap-2">
             <EvalBar cp={position?.engineEval} />
             <Board
               fen={fen}
-              orientation={game?.userColor ?? 'white'}
+              orientation={orientation}
               bestMoveArrow={bestMoveArrow}
             />
           </div>

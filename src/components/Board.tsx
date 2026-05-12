@@ -44,11 +44,11 @@ export function Board({ fen, orientation = 'white', bestMoveArrow }: BoardProps)
 
   useEffect(() => {
     apiRef.current?.set({ fen, orientation });
-  }, [fen, orientation]);
-
-  useEffect(() => {
+    // `set({ orientation })` redraws and clears existing shapes —
+    // re-apply the engine arrow immediately so flipping the board
+    // doesn't drop it.
     apiRef.current?.setShapes(uciToShape(bestMoveArrow));
-  }, [bestMoveArrow]);
+  }, [fen, orientation, bestMoveArrow]);
 
   return (
     <div className="aspect-square w-full max-w-lg self-center">
