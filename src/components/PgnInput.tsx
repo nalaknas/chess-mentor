@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { analyzeGame } from '../engine/analyze';
+import { refreshLibrary, saveGame } from '../persistence';
 import { parsePgn } from '../pgn';
 import { useAppStore } from '../store';
 import type { Color, Game, GameResult, GameSource } from '../types';
@@ -39,6 +40,9 @@ export function PgnInput({ defaultColor = 'white', source = 'paste' }: PgnInputP
         positions,
       };
       setCurrentGame(game);
+      // Persist immediately so the game survives a reload even if
+      // analysis is interrupted mid-pass.
+      void saveGame(game).then(refreshLibrary);
       // Kick off engine analysis in the background; the UI stays
       // navigable while evals stream in.
       void analyzeGame(game);

@@ -1,9 +1,13 @@
+import { useEffect } from 'react';
 import { AnalysisProgress } from './components/AnalysisProgress';
 import { Board } from './components/Board';
 import { EvalBar } from './components/EvalBar';
+import { Header } from './components/Header';
+import { LibraryList } from './components/LibraryList';
 import { MoveList } from './components/MoveList';
 import { PgnInput } from './components/PgnInput';
 import { SidePane } from './components/SidePane';
+import { hydrateFromDb } from './persistence';
 import { useAppStore } from './store';
 
 const STARTING_FEN =
@@ -15,6 +19,10 @@ function App() {
   const position = game?.positions[ply];
   const fen = position?.fen ?? STARTING_FEN;
 
+  useEffect(() => {
+    void hydrateFromDb();
+  }, []);
+
   // On a key moment, show the engine's best move from the position
   // BEFORE the user's move. That arrow tells the user "here's what
   // you should have played instead."
@@ -25,10 +33,7 @@ function App() {
 
   return (
     <div className="flex h-full flex-col bg-stone-50 text-stone-900">
-      <header className="flex items-center justify-between border-b border-stone-200 bg-white px-4 py-3">
-        <h1 className="text-lg font-semibold">Chess Mentor</h1>
-        <div className="text-sm text-stone-500">ELO —</div>
-      </header>
+      <Header />
 
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-4 md:flex-row">
         <section
@@ -44,7 +49,14 @@ function App() {
             />
           </div>
           <AnalysisProgress />
-          {game ? <MoveList /> : <PgnInput />}
+          {game ? (
+            <MoveList />
+          ) : (
+            <div className="space-y-4">
+              <PgnInput />
+              <LibraryList />
+            </div>
+          )}
         </section>
 
         <SidePane />

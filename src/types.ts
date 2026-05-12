@@ -81,3 +81,37 @@ export interface Game {
   analysisStatus: AnalysisStatus;
   positions: Position[];
 }
+
+// Phase 4 will start populating these; the schema is in place now so
+// imports / exports stay round-trippable across phase boundaries.
+export interface Analysis {
+  id: string;
+  gameId: string;
+  ply: number;
+  explanation: string;
+  themeTags: ThemeTag[];
+  achievableMove?: string;
+  achievableExplanation?: string;
+  generatedAt: number;
+  model: string;
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'tool';
+  content: string;
+  toolCall?: {
+    name: 'evaluate_move';
+    input: { fen: string; move: string };
+    result?: { eval: number; pv: string[]; refutation?: string };
+  };
+  timestamp: number;
+}
+
+export interface Conversation {
+  id: string;
+  gameId: string;
+  ply: number;
+  messages: ChatMessage[];
+  createdAt: number;
+  updatedAt: number;
+}
