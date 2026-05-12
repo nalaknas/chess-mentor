@@ -9,6 +9,7 @@ import type {
   Analysis,
   Conversation,
   Game,
+  ThemeTag,
   UserProfile,
 } from './types';
 
@@ -79,6 +80,58 @@ export async function getAnalysis(
 
 export async function saveAnalysis(analysis: Analysis): Promise<void> {
   await db.analyses.put(analysis);
+}
+
+/**
+ * Return up to `max` theme tags from the most recent earlier key
+ * moment in this game. Powers spec section 7's recentThemes callback
+ * mechanism — "Remember that pin from move 9? Same idea here."
+ *
+ * Only looks at analyses with ply < currentPly so the current
+ * position's own themes don't echo back at it.
+ */
+export async function recentThemesForPly(
+  gameId: string,
+  currentPly: number,
+  max = 2,
+): Promise<ThemeTag[]> {
+  const earlier = await db.analyses
+    .where('gameId')
+    .equals(gameId)
+    .and((a) => a.ply < currentPly)
+    .toArray();
+
+  if (earlier.length === 0) return [];
+
+  earlier.sort((a, b) => a.ply - b.ply);
+  const mostRecent = earlier[earlier.length - 1];
+  return mostRecent.themeTags.slice(0, max);
+}
+
+// ─── Conversations ─────────────────────────────────────────────────
+
+export function conversationId(gameId: string, ply: number): string {
+  return `${gameId}-ply${ply}`;
+}
+
+export async function getConversation(
+  gameId: string,
+  ply: number,
+): Promise<Conversation | undefined> {
+  return db.conversations.where('[gameId+ply]').equals([gameId, ply]).first();
+}
+
+/**
+ * Upsert a conversation. Preserves `createdAt` across saves so we
+ * don't reset the timestamp on every turn.
+ */
+export async function saveConversation(c: Conversation): Promise<void> {
+  const existing = await db.conversations.get(c.id);
+  await db.conversations.put({
+    ...c,
+    createdAt: existing?.createdAt ?? c.createdAt,
+    updatedAt: Date.now(),
+  });
 }
 
 // ─── Backup / restore ──────────────────────────────────────────────

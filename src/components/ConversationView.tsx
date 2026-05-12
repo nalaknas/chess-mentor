@@ -1,11 +1,6 @@
 // Glues the cached initial analysis (AnalysisCard) to a follow-up
-// chat thread. CHE-15 wires the UI; the send handler routes through
-// `requestAssistantTurn`, which is stubbed today and gets wired to
-// /api/converse + the evaluate_move tool loop in CHE-16.
-//
-// Conversation state is per-position and scoped to this component —
-// switching plies clears the thread. CHE-17 will persist conversations
-// to IndexedDB so they survive navigation.
+// chat thread. CHE-17 adds IndexedDB persistence + recentThemes
+// carry-over from earlier key moments in the same game.
 
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -13,8 +8,14 @@ import {
   requestAssistantTurn,
 } from '../llm/converse';
 import { buildContext } from '../llm/context';
-import { getAnalysis } from '../persistence';
-import type { ChatMessage, Game } from '../types';
+import {
+  conversationId,
+  getAnalysis,
+  getConversation,
+  recentThemesForPly,
+  saveConversation,
+} from '../persistence';
+import type { ChatMessage, Conversation, Game, ThemeTag } from '../types';
 import { AnalysisCard } from './AnalysisCard';
 import { ChatInput } from './ChatInput';
 import { ChatMessageBubble } from './ChatMessageBubble';
@@ -31,24 +32,34 @@ export function ConversationView({ game, ply, userElo }: ConversationViewProps) 
   const [pending, setPending] = useState<ConversationPending>('idle');
   const [error, setError] = useState<string | null>(null);
   // The cached initial analysis text — passed to Claude so follow-ups
-  // are coherent with the seed message. Refreshed when ply changes.
+  // are coherent with the seed message.
   const [seedAnalysis, setSeedAnalysis] = useState<string | undefined>();
+  // Themes from the most recent earlier key moment (spec section 7).
+  const [recentThemes, setRecentThemes] = useState<ThemeTag[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
 
-  // Reset the thread when we move to a different key moment. CHE-17
-  // will swap this for a load-from-IndexedDB hydration.
+  // Restore conversation, seed analysis, and recentThemes when ply
+  // changes. The three fetches run in parallel.
   useEffect(() => {
     abortRef.current?.abort();
     setMessages([]);
     setPending('idle');
     setError(null);
     setSeedAnalysis(undefined);
+    setRecentThemes([]);
 
     let cancelled = false;
     void (async () => {
-      const cached = await getAnalysis(game.id, ply);
-      if (!cancelled) setSeedAnalysis(cached?.explanation);
+      const [cachedAnalysis, conv, themes] = await Promise.all([
+        getAnalysis(game.id, ply),
+        getConversation(game.id, ply),
+        recentThemesForPly(game.id, ply),
+      ]);
+      if (cancelled) return;
+      setSeedAnalysis(cachedAnalysis?.explanation);
+      if (conv) setMessages(conv.messages);
+      setRecentThemes(themes);
     })();
     return () => {
       cancelled = true;
@@ -81,7 +92,7 @@ export function ConversationView({ game, ply, userElo }: ConversationViewProps) 
     abortRef.current = controller;
 
     try {
-      const context = buildContext({ game, ply, userElo });
+      const context = buildContext({ game, ply, userElo, recentThemes });
       if (!context) {
         setError('Position not ready — engine analysis still pending?');
         return;
@@ -96,10 +107,21 @@ export function ConversationView({ game, ply, userElo }: ConversationViewProps) 
         onPending: setPending,
       });
 
-      // Belt + suspenders: bail if the position changed mid-flight.
       if (controller.signal.aborted) return;
 
-      setMessages((prev) => [...prev, ...result.assistantMessages]);
+      const finalMessages = [...messages, userMsg, ...result.assistantMessages];
+      setMessages(finalMessages);
+
+      // Persist the conversation so it survives navigation + reload.
+      const persisted: Conversation = {
+        id: conversationId(game.id, ply),
+        gameId: game.id,
+        ply,
+        messages: finalMessages,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      await saveConversation(persisted);
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : String(err));
@@ -110,7 +132,12 @@ export function ConversationView({ game, ply, userElo }: ConversationViewProps) 
 
   return (
     <div className="space-y-3">
-      <AnalysisCard game={game} ply={ply} userElo={userElo} />
+      <AnalysisCard
+        game={game}
+        ply={ply}
+        userElo={userElo}
+        recentThemes={recentThemes}
+      />
 
       {(messages.length > 0 || pending !== 'idle' || error) && (
         <div className="space-y-2 border-t border-stone-200 pt-3">
