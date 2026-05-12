@@ -13,6 +13,7 @@ import {
   requestAssistantTurn,
 } from '../llm/converse';
 import { buildContext } from '../llm/context';
+import { getAnalysis } from '../persistence';
 import type { ChatMessage, Game } from '../types';
 import { AnalysisCard } from './AnalysisCard';
 import { ChatInput } from './ChatInput';
@@ -29,6 +30,9 @@ export function ConversationView({ game, ply, userElo }: ConversationViewProps) 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState<ConversationPending>('idle');
   const [error, setError] = useState<string | null>(null);
+  // The cached initial analysis text — passed to Claude so follow-ups
+  // are coherent with the seed message. Refreshed when ply changes.
+  const [seedAnalysis, setSeedAnalysis] = useState<string | undefined>();
   const abortRef = useRef<AbortController | null>(null);
   const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
 
@@ -39,6 +43,16 @@ export function ConversationView({ game, ply, userElo }: ConversationViewProps) 
     setMessages([]);
     setPending('idle');
     setError(null);
+    setSeedAnalysis(undefined);
+
+    let cancelled = false;
+    void (async () => {
+      const cached = await getAnalysis(game.id, ply);
+      if (!cancelled) setSeedAnalysis(cached?.explanation);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [game.id, ply]);
 
   // Cancel any in-flight request when the component unmounts.
@@ -75,7 +89,8 @@ export function ConversationView({ game, ply, userElo }: ConversationViewProps) 
 
       const result = await requestAssistantTurn({
         context,
-        history: [...messages, userMsg],
+        seedAnalysis,
+        history: messages,
         newUserMessage: text,
         signal: controller.signal,
         onPending: setPending,

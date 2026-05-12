@@ -1,68 +1,215 @@
-// Conversation request shape + a STUB implementation. CHE-16 will
-// replace `requestAssistantTurn` with the real agent loop that calls
-// /api/converse, handles tool_use blocks, and runs evaluate_move
-// against local Stockfish. The interface lives here so the UI can be
-// built and verified against a stable contract first.
+// Multi-turn conversation with Claude, with `evaluate_move` as a
+// local tool. The agent loop:
+//   1. POST to /api/converse with current messages + tool defs.
+//   2. If response has tool_use blocks → run them locally → append
+//      tool_result blocks → loop.
+//   3. Otherwise → extract final text → return to UI.
+// Hard caps:
+//   - MAX_ITERATIONS (5) prevents infinite tool-use loops.
+//   - max_tokens (1024) bounds each turn.
+//   - AbortSignal cancels in-flight requests when the user navigates.
 
 import type { ChatMessage } from '../types';
 import type { ConversationContext } from './context';
+import { systemPrompt } from './prompts';
+import { EVALUATE_MOVE_TOOL, executeEvaluateMove } from './tools';
 
 export type ConversationPending = 'idle' | 'thinking' | 'tool-use';
 
 export interface ConverseArgs {
-  /** Static context for this position (FEN, eval, engine pick, etc.). */
   context: ConversationContext;
-  /** Conversation so far: seed analysis message + any prior follow-ups. */
+  /** Optional initial assistant message — usually the cached AnalysisCard text. */
+  seedAnalysis?: string;
+  /** Visible thread so far (user/assistant text turns only — no tool blocks). */
   history: ChatMessage[];
-  /** What the user just typed. */
   newUserMessage: string;
   signal?: AbortSignal;
-  /** Notifies the UI when the request transitions between thinking / tool-use / idle. */
   onPending?: (state: ConversationPending) => void;
 }
 
 export interface ConverseResult {
-  /** Messages to APPEND after the user's message (assistant + any tool turns). */
   assistantMessages: ChatMessage[];
 }
 
-const STUB_DELAY_MS = 600;
-const STUB_TEXT =
-  '(Stubbed response — CHE-16 will wire `/api/converse` + the `evaluate_move` tool loop here. ' +
-  'For now this just confirms the chat UI works end-to-end.)';
+const MODEL = 'claude-sonnet-4-5';
+const MAX_TOKENS = 1024;
+const MAX_ITERATIONS = 5;
+
+// ─── Anthropic wire types (subset we use) ──────────────────────────
+
+interface TextBlock {
+  type: 'text';
+  text: string;
+}
+interface ToolUseBlock {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+interface ToolResultBlock {
+  type: 'tool_result';
+  tool_use_id: string;
+  content: string;
+  is_error?: boolean;
+}
+type ContentBlock = TextBlock | ToolUseBlock | ToolResultBlock;
+
+interface AnthropicMessage {
+  role: 'user' | 'assistant';
+  content: string | ContentBlock[];
+}
+
+interface AnthropicResponse {
+  content: ContentBlock[];
+  stop_reason: 'end_turn' | 'tool_use' | 'max_tokens' | 'stop_sequence';
+}
+
+// ─── Main entry point ──────────────────────────────────────────────
 
 export async function requestAssistantTurn(
   args: ConverseArgs,
 ): Promise<ConverseResult> {
-  args.onPending?.('thinking');
-  await delay(STUB_DELAY_MS, args.signal);
-  args.onPending?.('idle');
+  const { context, seedAnalysis, history, newUserMessage, signal, onPending } = args;
+
+  const messages: AnthropicMessage[] = [];
+  if (seedAnalysis) {
+    messages.push({ role: 'assistant', content: seedAnalysis });
+  }
+  for (const m of history) {
+    if (m.role === 'user' || m.role === 'assistant') {
+      messages.push({ role: m.role, content: m.content });
+    }
+  }
+  messages.push({ role: 'user', content: newUserMessage });
+
+  const system = systemPrompt(context, { withTool: true, jsonResponse: false });
+  let finalText = '';
+
+  for (let i = 0; i < MAX_ITERATIONS; i++) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+    onPending?.('thinking');
+    const response = await postConverse({ system, messages, signal });
+
+    // Append the assistant's response to the running message log.
+    messages.push({ role: 'assistant', content: response.content });
+
+    if (response.stop_reason === 'tool_use') {
+      onPending?.('tool-use');
+      const toolResults: ContentBlock[] = [];
+      for (const block of response.content) {
+        if (block.type !== 'tool_use') continue;
+        if (block.name !== 'evaluate_move') {
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify({ error: `Unknown tool: ${block.name}` }),
+            is_error: true,
+          });
+          continue;
+        }
+        const input = block.input as { fen?: unknown; move?: unknown };
+        if (typeof input.fen !== 'string' || typeof input.move !== 'string') {
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify({
+              error: 'evaluate_move requires string `fen` and `move` arguments',
+            }),
+            is_error: true,
+          });
+          continue;
+        }
+        try {
+          const result = await executeEvaluateMove({
+            fen: input.fen,
+            move: input.move,
+          });
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          });
+        } catch (err) {
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify({
+              error: err instanceof Error ? err.message : String(err),
+            }),
+            is_error: true,
+          });
+        }
+      }
+      messages.push({ role: 'user', content: toolResults });
+      continue;
+    }
+
+    // end_turn, max_tokens, stop_sequence — done. Use this turn's text.
+    finalText = extractText(response.content);
+    break;
+  }
+
+  onPending?.('idle');
+
+  if (!finalText) {
+    finalText =
+      "I got tangled up checking that — could you rephrase or ask a more specific question?";
+  }
 
   return {
     assistantMessages: [
       {
         role: 'assistant',
-        content: STUB_TEXT,
+        content: finalText,
         timestamp: Date.now(),
       },
     ],
   };
 }
 
-function delay(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new DOMException('Aborted', 'AbortError'));
-      return;
-    }
-    const t = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
-    function onAbort() {
-      clearTimeout(t);
-      reject(new DOMException('Aborted', 'AbortError'));
-    }
-    signal?.addEventListener('abort', onAbort, { once: true });
+// ─── Helpers ───────────────────────────────────────────────────────
+
+async function postConverse(args: {
+  system: string;
+  messages: AnthropicMessage[];
+  signal?: AbortSignal;
+}): Promise<AnthropicResponse> {
+  const body = {
+    model: MODEL,
+    max_tokens: MAX_TOKENS,
+    system: args.system,
+    messages: args.messages,
+    tools: [EVALUATE_MOVE_TOOL],
+  };
+  const res = await fetch('/api/converse', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: args.signal,
   });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(
+      `/api/converse returned ${res.status}: ${truncate(text, 200)}`,
+    );
+  }
+  try {
+    return JSON.parse(text) as AnthropicResponse;
+  } catch {
+    throw new Error('Anthropic response was not valid JSON');
+  }
+}
+
+function extractText(content: ContentBlock[]): string {
+  const parts: string[] = [];
+  for (const block of content) {
+    if (block.type === 'text' && block.text) parts.push(block.text);
+  }
+  return parts.join('\n\n').trim();
+}
+
+function truncate(s: string, n: number): string {
+  return s.length <= n ? s : `${s.slice(0, n)}…`;
 }
