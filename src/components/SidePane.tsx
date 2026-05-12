@@ -1,4 +1,4 @@
-import { AnalysisCard } from './AnalysisCard';
+import { ConversationView } from './ConversationView';
 import { formatEval } from '../format';
 import { useAppStore } from '../store';
 import type { Classification } from '../types';
@@ -107,7 +107,7 @@ export function SidePane() {
       )}
 
       {isKey && (
-        <AnalysisCard game={game} ply={ply} userElo={DEFAULT_USER_ELO} />
+        <ConversationView game={game} ply={ply} userElo={DEFAULT_USER_ELO} />
       )}
     </aside>
   );
