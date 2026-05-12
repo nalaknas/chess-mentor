@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { buildContext } from '../llm/context';
 import { LlmError, requestInitialAnalysis } from '../llm/client';
 import { analysisId, getAnalysis, saveAnalysis } from '../persistence';
-import type { Analysis, Game } from '../types';
+import type { Analysis, Game, ThemeTag } from '../types';
 
 interface AnalysisCardProps {
   game: Game;
   ply: number;
   userElo: number;
+  /** Themes from earlier key moments in this game; sent to Claude for callbacks. */
+  recentThemes?: ThemeTag[];
 }
 
 type State =
@@ -16,7 +18,7 @@ type State =
   | { kind: 'ready'; analysis: Analysis }
   | { kind: 'error'; message: string };
 
-export function AnalysisCard({ game, ply, userElo }: AnalysisCardProps) {
+export function AnalysisCard({ game, ply, userElo, recentThemes }: AnalysisCardProps) {
   const [state, setState] = useState<State>({ kind: 'idle' });
   // Bump to force a retry on the same (gameId, ply) after an error.
   const [retryNonce, setRetryNonce] = useState(0);
@@ -37,7 +39,7 @@ export function AnalysisCard({ game, ply, userElo }: AnalysisCardProps) {
           return;
         }
 
-        const ctx = buildContext({ game, ply, userElo });
+        const ctx = buildContext({ game, ply, userElo, recentThemes });
         if (!ctx) {
           setState({
             kind: 'error',
