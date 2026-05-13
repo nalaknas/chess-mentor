@@ -131,30 +131,36 @@ export function ConversationView({ game, ply, userElo }: ConversationViewProps) 
   };
 
   return (
-    <div className="space-y-3">
-      <AnalysisCard
-        game={game}
-        ply={ply}
-        userElo={userElo}
-        recentThemes={recentThemes}
-      />
+    <div className="flex flex-1 flex-col md:min-h-0">
+      {/* Scrollable middle region: seed analysis + chat thread.
+          `min-h-0` is required so the flex child can shrink below
+          its content height and let `overflow-y-auto` engage. */}
+      <div className="space-y-3 border-t border-stone-200 p-3 md:flex-1 md:min-h-0 md:overflow-y-auto">
+        <AnalysisCard
+          game={game}
+          ply={ply}
+          userElo={userElo}
+          recentThemes={recentThemes}
+        />
 
-      {(messages.length > 0 || pending !== 'idle' || error) && (
-        <div className="space-y-2 border-t border-stone-200 pt-3">
-          {messages.map((msg, i) => (
-            <ChatMessageBubble key={`${msg.timestamp}-${i}`} message={msg} />
-          ))}
-          {pending !== 'idle' && <PendingIndicator state={pending} />}
-          {error && (
-            <div className="text-xs text-red-600">
-              Something went wrong: {error}
-            </div>
-          )}
-          <div ref={scrollAnchorRef} />
-        </div>
-      )}
+        {(messages.length > 0 || pending !== 'idle' || error) && (
+          <div className="space-y-2 border-t border-stone-200 pt-3">
+            {messages.map((msg, i) => (
+              <ChatMessageBubble key={`${msg.timestamp}-${i}`} message={msg} />
+            ))}
+            {pending !== 'idle' && <PendingIndicator state={pending} />}
+            {error && (
+              <div className="text-xs text-red-600">
+                Something went wrong: {error}
+              </div>
+            )}
+            <div ref={scrollAnchorRef} />
+          </div>
+        )}
+      </div>
 
-      <div className="border-t border-stone-200 pt-3">
+      {/* Fixed input region — pinned to the bottom of the side pane. */}
+      <div className="flex-shrink-0 border-t border-stone-200 p-3">
         <ChatInput
           onSend={onSend}
           disabled={pending !== 'idle'}

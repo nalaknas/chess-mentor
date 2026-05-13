@@ -40,8 +40,6 @@ export function SidePane() {
     );
   }
 
-  // Phase 4 will replace this with Claude analysis. For now, surface
-  // the classification + engine pick so CHE-9 / CHE-10 are testable.
   const isKey = position?.isKeyMoment;
   const cls = position?.classification;
   // "What the user should have played" lives on the PREVIOUS position
@@ -55,57 +53,64 @@ export function SidePane() {
   return (
     <aside
       aria-label="Analysis pane"
-      className="space-y-3 rounded-md border border-stone-200 bg-white p-3 text-sm md:w-80"
+      className="flex flex-col rounded-md border border-stone-200 bg-white text-sm md:h-full md:min-h-0 md:w-80"
     >
-      <div>
-        <div className="text-stone-900">
-          {game.white} vs {game.black}
+      {/* Fixed top region: game header + move info + classification */}
+      <div className="flex-shrink-0 space-y-3 p-3">
+        <div>
+          <div className="text-stone-900">
+            {game.white} vs {game.black}
+          </div>
+          <div className="text-stone-500">Result: {game.result}</div>
+          <div className="text-stone-500">
+            Moves: {game.positions.length - 1}
+          </div>
         </div>
-        <div className="text-stone-500">Result: {game.result}</div>
-        <div className="text-stone-500">Moves: {game.positions.length - 1}</div>
+
+        {position && (
+          <div className="border-t border-stone-200 pt-3">
+            <div className="text-xs uppercase tracking-wide text-stone-400">
+              Move {ply > 0 ? Math.ceil(ply / 2) : '—'}
+              {ply > 0 && (ply % 2 === 1 ? ' (White)' : ' (Black)')}
+            </div>
+            {position.moveSan ? (
+              <div className="mt-1 font-mono text-base text-stone-900">
+                {position.moveSan}
+                {cls && (
+                  <span className={`ml-2 font-sans text-xs ${CLASS_COLOR[cls]}`}>
+                    {CLASS_LABEL[cls]}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="mt-1 text-stone-500">Starting position</div>
+            )}
+
+            {isKey && position.evalDrop !== undefined && (
+              <div className="mt-2 space-y-1 text-xs text-stone-600">
+                <div>Lost {Math.round(position.evalDrop)}cp.</div>
+                {alternativeSan && (
+                  <div>
+                    Engine preferred:{' '}
+                    <span className="font-mono text-stone-900">
+                      {alternativeSan}
+                    </span>
+                    .
+                  </div>
+                )}
+                {evalBefore !== undefined && evalAfter !== undefined && (
+                  <div className="text-stone-500">
+                    Eval: {formatEval(evalBefore)} → {formatEval(evalAfter)}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {position && (
-        <div className="border-t border-stone-200 pt-3">
-          <div className="text-xs uppercase tracking-wide text-stone-400">
-            Move {ply > 0 ? Math.ceil(ply / 2) : '—'}
-            {ply > 0 && (ply % 2 === 1 ? ' (White)' : ' (Black)')}
-          </div>
-          {position.moveSan ? (
-            <div className="mt-1 font-mono text-base text-stone-900">
-              {position.moveSan}
-              {cls && (
-                <span className={`ml-2 font-sans text-xs ${CLASS_COLOR[cls]}`}>
-                  {CLASS_LABEL[cls]}
-                </span>
-              )}
-            </div>
-          ) : (
-            <div className="mt-1 text-stone-500">Starting position</div>
-          )}
-
-          {isKey && position.evalDrop !== undefined && (
-            <div className="mt-2 space-y-1 text-xs text-stone-600">
-              <div>Lost {Math.round(position.evalDrop)}cp.</div>
-              {alternativeSan && (
-                <div>
-                  Engine preferred:{' '}
-                  <span className="font-mono text-stone-900">
-                    {alternativeSan}
-                  </span>
-                  .
-                </div>
-              )}
-              {evalBefore !== undefined && evalAfter !== undefined && (
-                <div className="text-stone-500">
-                  Eval: {formatEval(evalBefore)} → {formatEval(evalAfter)}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
+      {/* Flex-1 conversation region (only on key moments). Internally
+          scrollable; chat input pins to the bottom inside it. */}
       {isKey && (
         <ConversationView game={game} ply={ply} userElo={DEFAULT_USER_ELO} />
       )}
