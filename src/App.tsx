@@ -46,10 +46,10 @@ function App() {
     <div className="flex h-full flex-col bg-stone-50 text-stone-900">
       <Header />
 
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-4 md:flex-row">
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-4 md:flex-row md:overflow-hidden md:min-h-0">
         <section
           aria-label="Board and move list"
-          className="flex flex-1 flex-col gap-4"
+          className="flex flex-1 flex-col gap-4 md:min-h-0"
         >
           {game && (
             <div className="flex items-center justify-end">
@@ -70,14 +70,19 @@ function App() {
             />
           </div>
           <AnalysisProgress />
-          {game ? (
-            <MoveList />
-          ) : (
-            <div className="space-y-4">
-              <PgnInput />
-              <LibraryList />
-            </div>
-          )}
+          {/* Move list (or paste UI when no game) is the one scrollable
+              child of the left section on md+ — keeps the board anchored
+              while a long game list scrolls inside its own container. */}
+          <div className="md:flex-1 md:min-h-0 md:overflow-y-auto">
+            {game ? (
+              <MoveList />
+            ) : (
+              <div className="space-y-4">
+                <PgnInput />
+                <LibraryList />
+              </div>
+            )}
+          </div>
         </section>
 
         <SidePane />
